@@ -26,7 +26,7 @@ module EDTypesMod
   integer, parameter, public :: maxPatchesPerSite  = 14   ! maximum number of patches to live on a site
   integer, parameter, public :: maxPatchesPerSite_by_disttype(n_anthro_disturbance_categories)  = &
                                                      (/ 10, 4 /)  !!! MUST SUM TO maxPatchesPerSite !!!
-  integer,  public :: maxCohortsPerPatch = 100            ! maximum number of cohorts per patch
+  integer,  public :: maxCohortsPerPatch = 20            ! maximum number of cohorts per patch
   
   integer, parameter, public :: nclmax = 2                ! Maximum number of canopy layers
   integer, parameter, public :: ican_upper = 1            ! Nominal index for the upper canopy
@@ -114,7 +114,7 @@ module EDTypesMod
 
   integer, parameter, public  :: numWaterMem          = 10         ! watermemory saved as site level var
 
-  integer, parameter, public  :: numlevsoil_max       = 30         ! This is scratch space used for static arrays
+  integer, parameter, public  :: numlevsoil_max       = 20         ! This is scratch space used for static arrays
                                                                    ! The actual number of soil layers should not exceed this
 
 
