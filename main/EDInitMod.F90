@@ -617,7 +617,7 @@ contains
           sitep => sites(s)
           call updateSizeDepRhizHydProps(sitep, bc_in(s))
        end do
-       deallocate(recall_older_patch)
+!       deallocate(recall_older_patch)
     end if
 
     return
