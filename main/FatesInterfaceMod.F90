@@ -476,7 +476,7 @@ contains
          allocate(bc_in%hlm_harvest_catnames(0))
       end if
 
-      allocate(bc_in%pft_areafrac(maxpft))
+      allocate(bc_in%pft_areafrac(0:maxpft))
 
       ! Variables for SP mode. 
       if(hlm_use_sp.eq.itrue) then
