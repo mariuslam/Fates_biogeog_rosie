@@ -2162,6 +2162,7 @@ subroutine FillDrainRhizShells(nsites, sites, bc_in, bc_out)
            else
               csite_hydr%h2osoi_liqvol_shell(j,ordered(1:k)) = &
                    csite_hydr%h2osoi_liqvol_shell(j,ordered(1:k)) + dwat_kg/denh2o/v_cum
+              !write(fates_log(),*) 'CHECK 1: ','j: ',j, 'h2osoi_liqvol_shell(j,k): ', csite_hydr%h2osoi_liqvol_shell(j,k)
               dwat_kg  = 0._r8
            end if
            k = k + 1
@@ -2277,7 +2278,8 @@ subroutine hydraulics_bc ( nsites, sites, bc_in, bc_out, dtime)
   real(r8) :: sumcheck            ! used to debug mass balance in soil horizon diagnostics
   integer  :: nlevrhiz            ! local for number of rhizosphere levels
   integer  :: sc                  ! size class index
-
+  real(r8) :: site_lat  
+  real(r8) :: site_lon   
   ! ----------------------------------------------------------------------------------
   ! Important note: We are interested in calculating the total fluxes in and out of the
   ! site/column.  Usually, when we do things like this, we acknowledge that FATES
@@ -2434,8 +2436,11 @@ subroutine hydraulics_bc ( nsites, sites, bc_in, bc_out, dtime)
                  ! -----------------------------------------------------------------------------------
 
                  call OrderLayersForSolve1D(site_hydr, ccohort, ccohort_hydr, ordered, kbg_layer)
+		
+		 site_lat = sites(s)%lat 
+		 site_lon = sites(s)%lon
 
-                 call ImTaylorSolve1D(site_hydr,ccohort,ccohort_hydr, &
+                 call ImTaylorSolve1D(s,site_lat,site_lon,site_hydr,ccohort,ccohort_hydr, &
                       dtime,qflx_tran_veg_indiv,ordered, kbg_layer, & 
                       sapflow,rootuptake(1:nlevrhiz), & 
                       wb_err_plant,dwat_plant, &
@@ -2519,7 +2524,7 @@ subroutine hydraulics_bc ( nsites, sites, bc_in, bc_out, dtime)
         ! rhizosphere shell water content [m3/m3]
         site_hydr%h2osoi_liqvol_shell(j,:) =  site_hydr%h2osoi_liqvol_shell(j,:) + &
              dth_layershell_col(j,:)
-
+     	!write(fates_log(),*) 'CHECK 2: ','j: ',j, 'h2osoi_liqvol_shell(j,1): ', site_hydr%h2osoi_liqvol_shell(j,1)
 
         bc_out(s)%qflx_soil2root_sisl(j_bc) = &
              -(sum(dth_layershell_col(j,:)*site_hydr%v_shell(j,:))*denh2o*AREA_INV/dtime) + &
@@ -2550,9 +2555,7 @@ subroutine hydraulics_bc ( nsites, sites, bc_in, bc_out, dtime)
                  site_runoff = site_runoff + & 
                       (site_hydr%h2osoi_liqvol_shell(j,i)-(bc_in(s)%watsat_sisl(j_bc)-thsat_buff)) * &
                       site_hydr%v_shell(j,i)*AREA_INV*denh2o
-
                  site_hydr%h2osoi_liqvol_shell(j,i) = bc_in(s)%watsat_sisl(j_bc)-thsat_buff
-
               end if
            end do
 
@@ -2921,7 +2924,7 @@ subroutine OrderLayersForSolve1D(site_hydr,cohort,cohort_hydr,ordered, kbg_layer
      ! Special case. Maximum conductance depends on the 
      ! potential gradient (same elevation, no geopotential
      ! required.
-
+     !write(fates_log(),*) 'CHECK 3: ','j: ',j, 'h2osoi_liqvol_shell(j,1): ', site_hydr%h2osoi_liqvol_shell(j,1)
      psi_inner_shell = site_hydr%wrf_soil(j)%p%psi_from_th(site_hydr%h2osoi_liqvol_shell(j,1)) 
 
      ! Note, since their is no elevation difference between
@@ -2988,7 +2991,7 @@ end subroutine OrderLayersForSolve1D
 
 ! =================================================================================
 
-subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
+subroutine ImTaylorSolve1D(s,site_lat,site_lon,site_hydr,cohort,cohort_hydr,dtime,q_top, &
      ordered,kbg_layer, sapflow,rootuptake,&
      wb_err_plant,dwat_plant,dth_layershell_col)
 
@@ -3009,6 +3012,9 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
 
   ! Arguments (IN)
   type(ed_cohort_type),intent(in),target       :: cohort
+  real(r8), intent(in)                         :: site_lat
+  real(r8), intent(in)                         :: site_lon !marius
+  integer,intent(in)                           :: s !marius
   type(ed_cohort_hydr_type),intent(inout),target  :: cohort_hydr
   type(ed_site_hydr_type), intent(in),target   :: site_hydr
   real(r8), intent(in)                         :: dtime
@@ -3219,7 +3225,9 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
 
         ! Gracefully quit if too many iterations have been used
         if(iter>max_iter)then
-           call Report1DError(cohort,site_hydr,ilayer,z_node,v_node, & 
+	   write(fates_log(), *) 'Marius s:',s,' lat:',site_lat,' lon:',site_lon !marius
+           
+	   call Report1DError(cohort,site_hydr,ilayer,z_node,v_node, & 
                 th_node_init,q_top_eff,dt_step,w_tot_beg,w_tot_end,& 
                 rootfr_scaler,aroot_frac_plant,error_code,error_arr)
 
@@ -3289,7 +3297,9 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
 
 
            ! Same updates as loop above, but for rhizosphere shells
-
+           !if(s.eq.63)then
+           !   write(fates_log(),*) 'Marius first check line 3301 before update:',' psi_node(5):', psi_node(5),' h_node(5):',h_node(5),' th_node(5):',th_node(5)
+           !end if
            do i = n_hypool_plant+1,n_hypool_tot
               psi_node(i)         = site_hydr%wrf_soil(ilayer)%p%psi_from_th(th_node(i))
               h_node(i)           = mpa_per_pa*denh2o*grav_earth*z_node(i) + psi_node(i)
@@ -3451,7 +3461,6 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
            tris_c(1) = B_term(1)
            tris_r(1) = q_top_eff - k_eff(1)*(h_node(2)-h_node(1))
 
-
            do i = 2,n_hypool_tot-1
               j = i
               tris_a(i) = -A_term(j-1)
@@ -3469,9 +3478,14 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
            tris_c(i) = 0._r8
            tris_r(i) = k_eff(j-1)*(h_node(i)-h_node(i-1))
 
-
+           !if(s.eq.63)then
+           !   write(fates_log(),*) 'Mar s:',s,' psi(5):', psi_node(5),' h(5):',h_node(5),' th(5):',th_node(5),' dth(5):',dth_node(5)
+	   !end if
            ! Calculate the change in theta
-
+           !if(s.eq.63)then
+           !   write(fates_log(),*) 'Marius second check line 3483 before hydro tridiag:',' psi_node(5):', psi_node(5),' h_node(5):',h_node(5),' th_node(5):',th_node(5)
+           !   write(fates_log(),*) 'Marius second check line 3483 before hydro tridiag:',' tris_a:', tris_a,' tris_b:',tris_b,' tris_c:',tris_c,' tris_r:',tris_r,' dth_node:',dth_node,' tri_ierr:',tri_ierr
+           !end if
            call Hydraulics_Tridiagonal(tris_a, tris_b, tris_c, tris_r, dth_node, tri_ierr)
 
            if(tri_ierr == 1) then
@@ -3494,6 +3508,7 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
            wb_step_err = (q_top_eff*dt_substep) - (w_tot_beg-w_tot_end)
 
            if(abs(wb_step_err)>max_wb_step_err .or. any(dth_node(:).ne.dth_node(:)) )then
+	      write(fates_log(),*) 'Marius hydro tridiag:',' tris_a:', tris_a,' tris_b:',tris_b,' tris_c:',tris_c,' tris_r:',tris_r,' dth_node:',dth_node,' tri_ierr:',tri_ierr
               solution_found = .false.
               error_code = 1
               error_arr(:) = 0._r8
@@ -3672,11 +3687,20 @@ subroutine ImTaylorSolve1D(site_hydr,cohort,cohort_hydr,dtime,q_top, &
         write(fates_log(),*) cohort_hydr%l_aroot_layer(ilayer)
         call endrun(msg=errMsg(sourcefile, __LINE__))
      end if
-
+     !if (ilayer==5) then
+     !	write(fates_log(),*) 'CHECK 4: ','dth_layershell_col(5,1):',dth_layershell_col(5,1)
+     !end if
      dth_layershell_col(ilayer,:) = dth_layershell_col(ilayer,:) + &
           dth_node((n_hypool_tot-nshell+1):n_hypool_tot) * & 
           cohort_hydr%l_aroot_layer(ilayer) * &
           cohort%n / site_hydr%l_aroot_layer(ilayer)
+     !if (ilayer==5) then
+     !   write(fates_log(),*) 'CHECK 5: ','dth_layershell_col(5,1):',dth_layershell_col(5,1)
+     !	write(fates_log(),*) 'CHECK 5: ','cohort_hydr%l_aroot_layer(5):',cohort_hydr%l_aroot_layer(5)
+     !	write(fates_log(),*) 'CHECK 5: ','cohort%n:',cohort%n
+     !	write(fates_log(),*) 'CHECK 5: ','site_hydr%l_aroot_layer(5):',site_hydr%l_aroot_layer(5)
+     !	write(fates_log(),*) 'CHECK 5: ','dth_node(5):',dth_node(5) 
+     !end if
 
   enddo !soil layer (jj -> ilayer)
 
